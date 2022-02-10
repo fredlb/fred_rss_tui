@@ -17,7 +17,7 @@ use tui::{
     backend::{Backend, CrosstermBackend},
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
-    text::Spans,
+    text::{ Span, Spans },
     widgets::{Block, Borders, List, ListItem, ListState},
     Frame, Terminal,
 };
@@ -76,12 +76,22 @@ impl<T> StatefulList<T> {
 /// Check the drawing logic for items on how to specify the highlighting style for selected items.
 struct App {
     data: StatefulList<rss::Channel>,
+    selected_feed: Option<rss::Channel>,
 }
 
 impl App {
     fn new(data: Vec<rss::Channel> ) -> App {
         App {
             data: StatefulList::with_items(data),
+            selected_feed: None,
+        }
+    }
+
+    fn view_feed_under_cursor(&mut self) {
+        let index = self.data.state.selected();
+        match index {
+            None => panic!(),
+            Some(i) =>  self.selected_feed = Some(self.data.items.clone()[i].clone()),
         }
     }
 }
@@ -96,6 +106,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let urls = vec![
         "https://hnrss.org/frontpage",
         "http://www.sweclockers.com/feeds/nyheter",
+        "https://rss.aftonbladet.se/rss2/small/pages/sections/senastenytt/",
+        "https://www.svt.se/nyheter/rss.xml",
     ];
     let mut channels = Vec::new();
     for url in urls.iter() {
@@ -143,6 +155,7 @@ fn run_app<B: Backend>(
                     KeyCode::Char('h') => app.data.unselect(),
                     KeyCode::Char('j') => app.data.next(),
                     KeyCode::Char('k') => app.data.previous(),
+                    KeyCode::Enter => app.view_feed_under_cursor(),
                     _ => {}
                 }
             }
@@ -155,9 +168,9 @@ fn run_app<B: Backend>(
 
 fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     // Create two chunks with equal horizontal screen space
-    let chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(100)].as_ref())
+    let channel_picker_screen = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
         .split(f.size());
 
     // Iterate through all elements in the `items` app and append some debug text to it.
@@ -167,7 +180,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .iter()
         .map(|i| {
             let lines = vec![Spans::from(i.title())];
-            ListItem::new(lines).style(Style::default().fg(Color::White).bg(Color::Black))
+            ListItem::new(lines).style(Style::default().fg(Color::White))
         })
         .collect();
 
@@ -182,5 +195,18 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .highlight_symbol(">> ");
 
     // We can now render the item list
-    f.render_stateful_widget(items, chunks[0], &mut app.data.state);
+    let mut news_items = Vec::<ListItem>::new();
+    match app.selected_feed.clone() {
+        None => (),
+        Some(item) => {
+            for news in item.items() {
+                let lines = Span::from(news.title().unwrap().to_string());
+                news_items.push(ListItem::new(lines).style(Style::default().fg(Color::White)));
+            }
+        }
+    }
+
+    let news_list = List::new(news_items).block(Block::default().borders(Borders::ALL).title("News"));
+    f.render_stateful_widget(items, channel_picker_screen[0], &mut app.data.state);
+    f.render_widget(news_list, channel_picker_screen[1]);
 }
