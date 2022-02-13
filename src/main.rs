@@ -1,24 +1,25 @@
 mod app;
+mod network;
 
 extern crate crossterm;
+extern crate rss;
 extern crate serde;
 extern crate tui;
-extern crate rss;
 
-use app::{ App, Feed };
+use app::{App, Feed};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use reqwest;
+use network::{IoEvent, Network};
 
-use rss::Channel;
 use std::{
-    error::Error,
     io,
+    sync::Arc,
     time::{Duration, Instant},
 };
+use tokio::sync::Mutex;
 use tui::{
     backend::{Backend, CrosstermBackend},
     layout::{Constraint, Direction, Layout},
@@ -28,26 +29,34 @@ use tui::{
     Frame, Terminal,
 };
 
-fn main() -> Result<(), Box<dyn Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
-    let mut feeds = vec![Feed::new(
-        "SVT".to_string(),
-        "https://www.svt.se/nyheter/rss.xml".to_string(),
-    )];
-    for feed in feeds.iter_mut() {
-        let content = reqwest::blocking::get(&feed.url)?.bytes()?;
-        let channel = Channel::read_from(&content[..])?;
-        feed.set_channel(channel);
-    }
+    let feeds = vec![
+        Feed::new(
+            "SVT".to_string(),
+            "https://www.svt.se/nyheter/rss.xml".to_string(),
+        ),
+        Feed::new(
+            "HN Frontpage".to_string(),
+            "https://hnrss.org/frontpage".to_string(),
+        ),
+    ];
     // create app and run it
     let tick_rate = Duration::from_millis(250);
-    let app = App::new(feeds);
-    let res = run_app(&mut terminal, app, tick_rate);
+    let (sync_io_tx, sync_io_rx) = std::sync::mpsc::channel::<IoEvent>();
+    let app = Arc::new(Mutex::new(App::new(feeds, sync_io_tx)));
+    let cloned_app = Arc::clone(&app);
+    std::thread::spawn(move || {
+        let mut network = Network::new(&app);
+        start_tokio(sync_io_rx, &mut network);
+    });
+    let res = run_app(&mut terminal, &cloned_app, tick_rate).await?;
 
     // restore terminal
     disable_raw_mode()?;
@@ -58,21 +67,25 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
     terminal.show_cursor()?;
 
-    if let Err(err) = res {
-        println!("{:?}", err)
-    }
-
     Ok(())
 }
 
-fn run_app<B: Backend>(
+#[tokio::main]
+async fn start_tokio<'a>(io_rx: std::sync::mpsc::Receiver<IoEvent>, network: &mut Network) {
+    while let Ok(io_event) = io_rx.recv() {
+        network.handle_network_event(io_event).await;
+    }
+}
+
+async fn run_app<B: Backend>(
     terminal: &mut Terminal<B>,
-    mut app: App,
+    app: &Arc<Mutex<App>>,
     tick_rate: Duration,
 ) -> io::Result<()> {
     let mut last_tick = Instant::now();
     loop {
-        terminal.draw(|f| ui(f, &mut app))?;
+        let mut app = app.lock().await;
+        terminal.draw(|mut f| ui(&mut f, &app))?;
 
         let timeout = tick_rate
             .checked_sub(last_tick.elapsed())
@@ -95,7 +108,7 @@ fn run_app<B: Backend>(
     }
 }
 
-fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
+fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
     // Create two chunks with equal horizontal screen space
     let channel_picker_screen = Layout::default()
         .direction(Direction::Vertical)
@@ -140,6 +153,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
 
     let news_list =
         List::new(news_items).block(Block::default().borders(Borders::ALL).title("News"));
-    f.render_stateful_widget(items, channel_picker_screen[0], &mut app.data.state);
+    let mut statelist = app.data.state.clone();
+    f.render_stateful_widget(items, channel_picker_screen[0], &mut statelist);
     f.render_widget(news_list, channel_picker_screen[1]);
 }

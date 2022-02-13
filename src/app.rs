@@ -1,9 +1,13 @@
-extern crate tui;
 extern crate rss;
+extern crate tui;
 
-use tui::widgets::ListState;
+use crate::network::IoEvent;
 use rss::Channel;
+use tui::widgets::ListState;
 
+use std::sync::mpsc::Sender;
+
+#[derive(Clone)]
 pub struct StatefulList<T> {
     pub state: ListState,
     pub items: Vec<T>,
@@ -74,21 +78,39 @@ impl<T> StatefulList<T> {
 pub struct App {
     pub data: StatefulList<Feed>,
     pub selected_feed: Option<Feed>,
+    io_tx: Option<Sender<IoEvent>>,
+    pub is_loading: bool,
 }
 
 impl App {
-    pub fn new(data: Vec<Feed>) -> App {
+    pub fn new(data: Vec<Feed>, io_tx: Sender<IoEvent>) -> App {
         App {
             data: StatefulList::with_items(data),
             selected_feed: None,
+            io_tx: Some(io_tx),
+            is_loading: false,
         }
+    }
+
+    pub fn dispatch(&mut self, action: IoEvent) {
+        self.is_loading = true;
+        if let Some(io_tx) = &self.io_tx {
+            if let Err(e) = io_tx.send(action) {
+                self.is_loading = false;
+                println!("Error from dispatch {}", e);
+            };
+        }
+    }
+
+    pub fn get_channel(&mut self, feed: Feed) {
+        self.dispatch(IoEvent::GetChannel(feed));
     }
 
     pub fn view_feed_under_cursor(&mut self) {
         let index = self.data.state.selected();
         match index {
             None => panic!(),
-            Some(i) => self.selected_feed = Some(self.data.items[i].clone()),
+            Some(i) => self.get_channel(self.data.items[i].clone()),
         }
     }
 }
