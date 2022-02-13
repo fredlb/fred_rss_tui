@@ -1,13 +1,18 @@
+mod app;
+
 extern crate crossterm;
 extern crate serde;
 extern crate tui;
+extern crate rss;
 
+use app::{ App, Feed };
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use reqwest;
+
 use rss::Channel;
 use std::{
     error::Error,
@@ -19,104 +24,9 @@ use tui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Span, Spans},
-    widgets::{Block, Borders, List, ListItem, ListState},
+    widgets::{Block, Borders, List, ListItem},
     Frame, Terminal,
 };
-
-struct StatefulList<T> {
-    state: ListState,
-    items: Vec<T>,
-}
-
-#[derive(Clone)]
-struct Feed {
-    channel: Option<rss::Channel>,
-    name: String,
-    url: String,
-}
-
-impl Feed {
-    fn new(name: String, url: String) -> Feed {
-        Feed {
-            name,
-            url,
-            channel: None,
-        }
-    }
-
-    fn set_channel(&mut self, channel: rss::Channel) {
-        self.channel = Some(channel);
-    }
-}
-
-impl<T> StatefulList<T> {
-    fn with_items(items: Vec<T>) -> StatefulList<T> {
-        StatefulList {
-            state: ListState::default(),
-            items,
-        }
-    }
-
-    fn next(&mut self) {
-        let i = match self.state.selected() {
-            Some(i) => {
-                if i >= self.items.len() - 1 {
-                    0
-                } else {
-                    i + 1
-                }
-            }
-            None => 0,
-        };
-        self.state.select(Some(i));
-    }
-
-    fn previous(&mut self) {
-        let i = match self.state.selected() {
-            Some(i) => {
-                if i == 0 {
-                    self.items.len() - 1
-                } else {
-                    i - 1
-                }
-            }
-            None => 0,
-        };
-        self.state.select(Some(i));
-    }
-
-    fn unselect(&mut self) {
-        self.state.select(None);
-    }
-}
-
-/// This struct holds the current state of the app. In particular, it has the `items` field which is a wrapper
-/// around `ListState`. Keeping track of the items state let us render the associated widget with its state
-/// and have access to features such as natural scrolling.
-///
-/// Check the event handling at the bottom to see how to change the state on incoming events.
-/// Check the drawing logic for items on how to specify the highlighting style for selected items.
-struct App {
-    data: StatefulList<Feed>,
-    selected_feed: Option<Feed>,
-}
-
-impl App {
-    fn new(data: Vec<Feed>) -> App {
-        App {
-            data: StatefulList::with_items(data),
-            selected_feed: None,
-        }
-    }
-
-    fn view_feed_under_cursor(&mut self) {
-        let index = self.data.state.selected();
-        match index {
-            None => panic!(),
-            Some(i) => self.selected_feed = Some(self.data.items[i].clone()),
-        }
-    }
-}
 
 fn main() -> Result<(), Box<dyn Error>> {
     // setup terminal
