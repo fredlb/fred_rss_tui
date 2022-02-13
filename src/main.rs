@@ -1,13 +1,14 @@
 extern crate crossterm;
+extern crate serde;
 extern crate tui;
 
-use reqwest;
-use rss::Channel;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use reqwest;
+use rss::Channel;
 use std::{
     error::Error,
     io,
@@ -17,7 +18,7 @@ use tui::{
     backend::{Backend, CrosstermBackend},
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
-    text::{ Span, Spans },
+    text::{Span, Spans},
     widgets::{Block, Borders, List, ListItem, ListState},
     Frame, Terminal,
 };
@@ -25,6 +26,27 @@ use tui::{
 struct StatefulList<T> {
     state: ListState,
     items: Vec<T>,
+}
+
+#[derive(Clone)]
+struct Feed {
+    channel: Option<rss::Channel>,
+    name: String,
+    url: String,
+}
+
+impl Feed {
+    fn new(name: String, url: String) -> Feed {
+        Feed {
+            name,
+            url,
+            channel: None,
+        }
+    }
+
+    fn set_channel(&mut self, channel: rss::Channel) {
+        self.channel = Some(channel);
+    }
 }
 
 impl<T> StatefulList<T> {
@@ -75,12 +97,12 @@ impl<T> StatefulList<T> {
 /// Check the event handling at the bottom to see how to change the state on incoming events.
 /// Check the drawing logic for items on how to specify the highlighting style for selected items.
 struct App {
-    data: StatefulList<rss::Channel>,
-    selected_feed: Option<rss::Channel>,
+    data: StatefulList<Feed>,
+    selected_feed: Option<Feed>,
 }
 
 impl App {
-    fn new(data: Vec<rss::Channel> ) -> App {
+    fn new(data: Vec<Feed>) -> App {
         App {
             data: StatefulList::with_items(data),
             selected_feed: None,
@@ -91,7 +113,7 @@ impl App {
         let index = self.data.state.selected();
         match index {
             None => panic!(),
-            Some(i) =>  self.selected_feed = Some(self.data.items.clone()[i].clone()),
+            Some(i) => self.selected_feed = Some(self.data.items[i].clone()),
         }
     }
 }
@@ -103,21 +125,18 @@ fn main() -> Result<(), Box<dyn Error>> {
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
-    let urls = vec![
-        "https://hnrss.org/frontpage",
-        "http://www.sweclockers.com/feeds/nyheter",
-        "https://rss.aftonbladet.se/rss2/small/pages/sections/senastenytt/",
-        "https://www.svt.se/nyheter/rss.xml",
-    ];
-    let mut channels = Vec::new();
-    for url in urls.iter() {
-        let content = reqwest::blocking::get(*url)?.bytes()?;
+    let mut feeds = vec![Feed::new(
+        "SVT".to_string(),
+        "https://www.svt.se/nyheter/rss.xml".to_string(),
+    )];
+    for feed in feeds.iter_mut() {
+        let content = reqwest::blocking::get(&feed.url)?.bytes()?;
         let channel = Channel::read_from(&content[..])?;
-        channels.push(channel);
+        feed.set_channel(channel);
     }
     // create app and run it
     let tick_rate = Duration::from_millis(250);
-    let app = App::new(channels);
+    let app = App::new(feeds);
     let res = run_app(&mut terminal, app, tick_rate);
 
     // restore terminal
@@ -179,7 +198,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         .items
         .iter()
         .map(|i| {
-            let lines = vec![Spans::from(i.title())];
+            let lines = vec![Spans::from(i.name.clone())];
             ListItem::new(lines).style(Style::default().fg(Color::White))
         })
         .collect();
@@ -198,15 +217,19 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let mut news_items = Vec::<ListItem>::new();
     match app.selected_feed.clone() {
         None => (),
-        Some(item) => {
-            for news in item.items() {
-                let lines = Span::from(news.title().unwrap().to_string());
-                news_items.push(ListItem::new(lines).style(Style::default().fg(Color::White)));
+        Some(item) => match item.channel {
+            None => (),
+            Some(channel) => {
+                for news in channel.items() {
+                    let lines = Span::from(news.title().unwrap().to_string());
+                    news_items.push(ListItem::new(lines).style(Style::default().fg(Color::White)));
+                }
             }
-        }
+        },
     }
 
-    let news_list = List::new(news_items).block(Block::default().borders(Borders::ALL).title("News"));
+    let news_list =
+        List::new(news_items).block(Block::default().borders(Borders::ALL).title("News"));
     f.render_stateful_widget(items, channel_picker_screen[0], &mut app.data.state);
     f.render_widget(news_list, channel_picker_screen[1]);
 }

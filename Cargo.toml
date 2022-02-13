@@ -10,3 +10,4 @@ crossterm = "*"
 tui = "*"
 rss = "2.0"
 reqwest = { version = "0.11", features = ["blocking", "json"] }
+serde = {version= "1.0.136", features = ["derive"]}
