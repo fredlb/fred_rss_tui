@@ -28,13 +28,13 @@ impl<'a> Network<'a> {
     }
 
     async fn get_channel(&mut self, feed: Feed) {
-        let result = reqwest::get(feed.url).await;
+        let result = reqwest::get(feed.url.clone()).await;
         match result {
             Ok(result) => match result.bytes().await {
                 Ok(result) => {
                     let channel = Channel::read_from(&result[..]);
                     let mut app = self.app.lock().await;
-                    let mut feed = Feed::new(feed.name.clone(), "asas".to_string());
+                    let mut feed = Feed::new(feed.name.clone(), feed.url.clone());
                     feed.set_channel(channel.unwrap());
                     app.selected_feed = Some(feed);
                 }
