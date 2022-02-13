@@ -56,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut network = Network::new(&app);
         start_tokio(sync_io_rx, &mut network);
     });
-    let res = run_app(&mut terminal, &cloned_app, tick_rate).await?;
+    let _res = run_app(&mut terminal, &cloned_app, tick_rate).await?;
 
     // restore terminal
     disable_raw_mode()?;
@@ -153,7 +153,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
 
     let news_list =
         List::new(news_items).block(Block::default().borders(Borders::ALL).title("News"));
-    let mut statelist = app.data.state.clone();
-    f.render_stateful_widget(items, channel_picker_screen[0], &mut statelist);
+
+    f.render_stateful_widget(items, channel_picker_screen[0], &mut app.data.state.clone());
     f.render_widget(news_list, channel_picker_screen[1]);
 }
