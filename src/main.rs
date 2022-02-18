@@ -8,7 +8,9 @@ extern crate tui;
 
 use app::{App, Feed};
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+    event::{
+        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers,
+    },
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -91,15 +93,33 @@ async fn run_app<B: Backend>(
             .checked_sub(last_tick.elapsed())
             .unwrap_or_else(|| Duration::from_secs(0));
         if crossterm::event::poll(timeout)? {
-            if let Event::Key(key) = event::read()? {
-                match key.code {
-                    KeyCode::Char('q') => return Ok(()),
-                    KeyCode::Char('h') => app.data.unselect(),
-                    KeyCode::Char('j') => app.data.next(),
-                    KeyCode::Char('k') => app.data.previous(),
-                    KeyCode::Enter => app.view_feed_under_cursor(),
-                    _ => {}
-                }
+            let event = event::read()?;
+            match event {
+                Event::Key(KeyEvent {
+                    modifiers: KeyModifiers::CONTROL,
+                    code: KeyCode::Char('w'),
+                }) => app.switch_view(),
+                Event::Key(KeyEvent {
+                    modifiers: KeyModifiers::NONE,
+                    code: KeyCode::Char('q'),
+                }) => return Ok(()),
+                Event::Key(KeyEvent {
+                    modifiers: KeyModifiers::NONE,
+                    code: KeyCode::Char('h'),
+                }) => app.data.unselect(),
+                Event::Key(KeyEvent {
+                    modifiers: KeyModifiers::NONE,
+                    code: KeyCode::Char('j'),
+                }) => app.data.next(),
+                Event::Key(KeyEvent {
+                    modifiers: KeyModifiers::NONE,
+                    code: KeyCode::Char('k'),
+                }) => app.data.previous(),
+                Event::Key(KeyEvent {
+                    modifiers: KeyModifiers::NONE,
+                    code: KeyCode::Enter,
+                }) => app.view_feed_under_cursor(),
+                _ => {}
             }
         }
         if last_tick.elapsed() >= tick_rate {
