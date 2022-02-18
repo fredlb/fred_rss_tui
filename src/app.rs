@@ -75,11 +75,17 @@ impl<T> StatefulList<T> {
     }
 }
 
+pub enum SelectedView {
+    FeedView,
+    NewsView,
+}
+
 pub struct App {
     pub data: StatefulList<Feed>,
     pub selected_feed: Option<Feed>,
     io_tx: Option<Sender<IoEvent>>,
     pub is_loading: bool,
+    pub selected_view: SelectedView,
 }
 
 impl App {
@@ -89,6 +95,7 @@ impl App {
             selected_feed: None,
             io_tx: Some(io_tx),
             is_loading: false,
+            selected_view: SelectedView::FeedView,
         }
     }
 
@@ -99,6 +106,13 @@ impl App {
                 self.is_loading = false;
                 println!("Error from dispatch {}", e);
             };
+        }
+    }
+
+    pub fn switch_view(&mut self) {
+        match self.selected_view {
+            SelectedView::FeedView => self.selected_view = SelectedView::NewsView,
+            SelectedView::NewsView => self.selected_view = SelectedView::FeedView,
         }
     }
 
