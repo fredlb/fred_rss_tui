@@ -34,8 +34,8 @@ impl<'a> Network<'a> {
                 Ok(result) => {
                     let channel = Channel::read_from(&result[..]);
                     let mut app = self.app.lock().await;
-                    let mut feed = Feed::new(feed.name.clone(), feed.url.clone());
-                    feed.set_channel(channel.unwrap());
+                    let feed = Feed::new(feed.name.clone(), feed.url.clone());
+                    app.set_feed(channel.unwrap());
                     app.selected_feed = Some(feed);
                 }
                 Err(e) => {}

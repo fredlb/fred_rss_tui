@@ -82,6 +82,7 @@ pub enum SelectedView {
 
 pub struct App {
     pub data: StatefulList<Feed>,
+    pub news_data: Option<StatefulList<rss::Item>>,
     pub selected_feed: Option<Feed>,
     io_tx: Option<Sender<IoEvent>>,
     pub is_loading: bool,
@@ -92,6 +93,7 @@ impl App {
     pub fn new(data: Vec<Feed>, io_tx: Sender<IoEvent>) -> App {
         App {
             data: StatefulList::with_items(data),
+            news_data: None,
             selected_feed: None,
             io_tx: Some(io_tx),
             is_loading: false,
@@ -118,6 +120,10 @@ impl App {
 
     pub fn get_channel(&mut self, feed: Feed) {
         self.dispatch(IoEvent::GetChannel(feed));
+    }
+
+    pub fn set_feed(&mut self, channel: Channel) {
+        self.news_data = Some(StatefulList::with_items(channel.items().to_vec()));
     }
 
     pub fn view_feed_under_cursor(&mut self) {

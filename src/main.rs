@@ -110,11 +110,21 @@ async fn run_app<B: Backend>(
                 Event::Key(KeyEvent {
                     modifiers: KeyModifiers::NONE,
                     code: KeyCode::Char('j'),
-                }) => app.data.next(),
+                }) => { 
+                    match app.selected_view {
+                        app::SelectedView::FeedView => app.data.next(),
+                        app::SelectedView::NewsView => app.news_data.as_mut().unwrap().next(),
+                    }
+                },
                 Event::Key(KeyEvent {
                     modifiers: KeyModifiers::NONE,
                     code: KeyCode::Char('k'),
-                }) => app.data.previous(),
+                }) => { 
+                    match app.selected_view {
+                        app::SelectedView::FeedView => app.data.next(),
+                        app::SelectedView::NewsView => app.news_data.as_mut().unwrap().previous(),
+                    }
+                },
                 Event::Key(KeyEvent {
                     modifiers: KeyModifiers::NONE,
                     code: KeyCode::Enter,
@@ -158,22 +168,31 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
 
     // We can now render the item list
     let mut news_items = Vec::<ListItem>::new();
-    match app.selected_feed.clone() {
+    match &app.news_data {
         None => (),
-        Some(item) => match item.channel {
-            None => (),
-            Some(channel) => {
-                for news in channel.items() {
-                    let lines = Span::from(news.title().unwrap().to_string());
-                    news_items.push(ListItem::new(lines).style(Style::default().fg(Color::White)));
-                }
+        Some(item) => {
+            for news in item.items.iter() {
+                let lines = Span::from(news.title().unwrap().to_string());
+                news_items.push(ListItem::new(lines).style(Style::default().fg(Color::White)));
             }
         },
     }
 
-    let news_list =
-        List::new(news_items).block(Block::default().borders(Borders::ALL).title("News"));
+    let news_list = List::new(news_items)
+        .block(Block::default().borders(Borders::ALL).title("News"))
+        .highlight_style(
+            Style::default()
+                .bg(Color::DarkGray)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol(">> ");
+
+    // let news_list =
+    //     List::new(news_items).block(Block::default().borders(Borders::ALL).title("News"));
 
     f.render_stateful_widget(items, channel_picker_screen[0], &mut app.data.state.clone());
-    f.render_widget(news_list, channel_picker_screen[1]);
+    match app.news_data {
+        Some(_) => f.render_stateful_widget(news_list, channel_picker_screen[1], &mut app.news_data.as_ref().unwrap().state.clone()),
+        None => {},
+    }
 }
