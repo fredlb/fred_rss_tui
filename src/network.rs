@@ -38,9 +38,9 @@ impl<'a> Network<'a> {
                     app.set_feed(channel.unwrap());
                     app.selected_feed = Some(feed);
                 }
-                Err(e) => {}
+                Err(_e) => {}
             },
-            Err(e) => {}
+            Err(_e) => {}
         }
     }
 }

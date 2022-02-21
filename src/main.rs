@@ -26,8 +26,8 @@ use tui::{
     backend::{Backend, CrosstermBackend},
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
-    text::{Span, Spans},
-    widgets::{Block, Borders, List, ListItem},
+    text::{Span, Spans, Text},
+    widgets::{Block, Borders, List, ListItem, Paragraph, Wrap},
     Frame, Terminal,
 };
 
@@ -102,17 +102,23 @@ async fn run_app<B: Backend>(
                 Event::Key(KeyEvent {
                     modifiers: KeyModifiers::NONE,
                     code: KeyCode::Char('q'),
-                }) => return Ok(()),
+                }) => {
+                    if app.stacking <=0 {
+                        return Ok(())
+                    } else {
+                        app.back();
+                    }
+                },
                 Event::Key(KeyEvent {
                     modifiers: KeyModifiers::NONE,
                     code: KeyCode::Char('h'),
-                }) => app.data.unselect(),
+                }) => app.feed_data.unselect(),
                 Event::Key(KeyEvent {
                     modifiers: KeyModifiers::NONE,
                     code: KeyCode::Char('j'),
                 }) => { 
                     match app.selected_view {
-                        app::SelectedView::FeedView => app.data.next(),
+                        app::SelectedView::FeedView => app.feed_data.next(),
                         app::SelectedView::NewsView => app.news_data.as_mut().unwrap().next(),
                     }
                 },
@@ -121,14 +127,18 @@ async fn run_app<B: Backend>(
                     code: KeyCode::Char('k'),
                 }) => { 
                     match app.selected_view {
-                        app::SelectedView::FeedView => app.data.next(),
+                        app::SelectedView::FeedView => app.feed_data.next(),
                         app::SelectedView::NewsView => app.news_data.as_mut().unwrap().previous(),
                     }
                 },
                 Event::Key(KeyEvent {
                     modifiers: KeyModifiers::NONE,
                     code: KeyCode::Enter,
-                }) => app.view_feed_under_cursor(),
+                }) => 
+                    match app.selected_view {
+                        app::SelectedView::FeedView => app.view_feed_under_cursor(),
+                        app::SelectedView::NewsView => app.view_news_under_cursor(),
+                    },
                 _ => {}
             }
         }
@@ -147,7 +157,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
 
     // Iterate through all elements in the `items` app and append some debug text to it.
     let items: Vec<ListItem> = app
-        .data
+        .feed_data
         .items
         .iter()
         .map(|i| {
@@ -172,8 +182,16 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
         None => (),
         Some(item) => {
             for news in item.items.iter() {
-                let lines = Span::from(news.title().unwrap().to_string());
-                news_items.push(ListItem::new(lines).style(Style::default().fg(Color::White)));
+                let mut description = String::from("...");
+                match &news.description {
+                    Some(n) => description = n.to_string().clone(),
+                    None => (),
+                };
+                let text = vec![
+                    Spans::from(news.title().unwrap().to_string()),
+                    Spans::from(vec![Span::styled(description, Style::default().fg(Color::Yellow))]),
+                ];
+                news_items.push(ListItem::new(text).style(Style::default().fg(Color::White)));
             }
         },
     }
@@ -187,10 +205,11 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
         )
         .highlight_symbol(">> ");
 
+
     // let news_list =
     //     List::new(news_items).block(Block::default().borders(Borders::ALL).title("News"));
 
-    f.render_stateful_widget(items, channel_picker_screen[0], &mut app.data.state.clone());
+    f.render_stateful_widget(items, channel_picker_screen[0], &mut app.feed_data.state.clone());
     match app.news_data {
         Some(_) => f.render_stateful_widget(news_list, channel_picker_screen[1], &mut app.news_data.as_ref().unwrap().state.clone()),
         None => {},

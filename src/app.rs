@@ -28,10 +28,6 @@ impl Feed {
             channel: None,
         }
     }
-
-    pub fn set_channel(&mut self, channel: Channel) {
-        self.channel = Some(channel);
-    }
 }
 
 impl<T> StatefulList<T> {
@@ -81,23 +77,27 @@ pub enum SelectedView {
 }
 
 pub struct App {
-    pub data: StatefulList<Feed>,
+    pub feed_data: StatefulList<Feed>,
     pub news_data: Option<StatefulList<rss::Item>>,
     pub selected_feed: Option<Feed>,
     io_tx: Option<Sender<IoEvent>>,
     pub is_loading: bool,
     pub selected_view: SelectedView,
+    pub news_index: usize,
+    pub stacking: usize,
 }
 
 impl App {
     pub fn new(data: Vec<Feed>, io_tx: Sender<IoEvent>) -> App {
         App {
-            data: StatefulList::with_items(data),
+            feed_data: StatefulList::with_items(data),
             news_data: None,
             selected_feed: None,
             io_tx: Some(io_tx),
             is_loading: false,
             selected_view: SelectedView::FeedView,
+            news_index: 0,
+            stacking: 0,
         }
     }
 
@@ -127,10 +127,28 @@ impl App {
     }
 
     pub fn view_feed_under_cursor(&mut self) {
-        let index = self.data.state.selected();
+        let index = self.feed_data.state.selected();
         match index {
             None => panic!(),
-            Some(i) => self.get_channel(self.data.items[i].clone()),
+            Some(i) => self.get_channel(self.feed_data.items[i].clone()),
+        }
+    }
+
+    pub fn back(&mut self) {
+        self.news_index = 0;
+        self.stacking -= 1;
+    }
+
+    pub fn view_news_under_cursor(&mut self) {
+        self.stacking += 1;
+        match &self.news_data {
+            Some(data) => {
+                match data.state.selected() {
+                    Some(i) => self.news_index = i,
+                    None => self.news_index = 0,
+                }
+            },
+            None => {},
         }
     }
 }
