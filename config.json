@@ -1,0 +1,8 @@
+    {
+        "feeds": [
+            {
+                "name": "SVT Nyheter",
+                "url": "https://www.svt.se/nyheter/rss.xml"
+            }
+        ]
+    }

@@ -2,7 +2,7 @@ extern crate rss;
 extern crate tui;
 
 use crate::network::IoEvent;
-use rss::Channel;
+use serde::{Deserialize, Serialize};
 use tui::widgets::ListState;
 
 use std::sync::mpsc::Sender;
@@ -13,21 +13,15 @@ pub struct StatefulList<T> {
     pub items: Vec<T>,
 }
 
-#[derive(Clone)]
-pub struct Feed {
-    pub channel: Option<Channel>,
-    pub name: String,
-    pub url: String,
+#[derive(Clone, Deserialize, Serialize)]
+pub struct Config {
+    pub feeds: Vec<ConfigFeed>,
 }
 
-impl Feed {
-    pub fn new(name: String, url: String) -> Feed {
-        Feed {
-            name,
-            url,
-            channel: None,
-        }
-    }
+#[derive(Clone, Serialize, Deserialize)]
+pub struct ConfigFeed {
+    pub name: String,
+    pub url: String,
 }
 
 impl<T> StatefulList<T> {
@@ -77,22 +71,22 @@ pub enum SelectedView {
 }
 
 pub struct App {
-    pub feed_data: StatefulList<Feed>,
+    pub feeds: StatefulList<ConfigFeed>,
     pub news_data: Option<StatefulList<rss::Item>>,
-    pub selected_feed: Option<Feed>,
     io_tx: Option<Sender<IoEvent>>,
     pub is_loading: bool,
     pub selected_view: SelectedView,
     pub news_index: usize,
     pub stacking: usize,
+    pub config: Config,
 }
 
 impl App {
-    pub fn new(data: Vec<Feed>, io_tx: Sender<IoEvent>) -> App {
+    pub fn new(config: Config, io_tx: Sender<IoEvent>) -> App {
         App {
-            feed_data: StatefulList::with_items(data),
+            config: config.clone(),
+            feeds: StatefulList::with_items(config.feeds.clone()),
             news_data: None,
-            selected_feed: None,
             io_tx: Some(io_tx),
             is_loading: false,
             selected_view: SelectedView::FeedView,
@@ -118,19 +112,17 @@ impl App {
         }
     }
 
-    pub fn get_channel(&mut self, feed: Feed) {
-        self.dispatch(IoEvent::GetChannel(feed));
+    pub fn get_channel(&mut self, url: String) {
+        self.dispatch(IoEvent::GetChannel(url));
     }
 
-    pub fn set_feed(&mut self, channel: Channel) {
+    pub fn set_feed(&mut self, channel: rss::Channel) {
         self.news_data = Some(StatefulList::with_items(channel.items().to_vec()));
     }
 
     pub fn view_feed_under_cursor(&mut self) {
-        let index = self.feed_data.state.selected();
-        match index {
-            None => panic!(),
-            Some(i) => self.get_channel(self.feed_data.items[i].clone()),
+        if let Some(index) = self.feeds.state.selected() {
+            self.get_channel(self.feeds.items[index].url.clone());
         }
     }
 
@@ -142,13 +134,11 @@ impl App {
     pub fn view_news_under_cursor(&mut self) {
         self.stacking += 1;
         match &self.news_data {
-            Some(data) => {
-                match data.state.selected() {
-                    Some(i) => self.news_index = i,
-                    None => self.news_index = 0,
-                }
+            Some(data) => match data.state.selected() {
+                Some(i) => self.news_index = i,
+                None => self.news_index = 0,
             },
-            None => {},
+            None => {}
         }
     }
 }

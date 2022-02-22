@@ -1,11 +1,11 @@
-use crate::app::{App, Feed};
+extern crate rss;
+use crate::app::App;
 
-use rss::Channel;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 pub enum IoEvent {
-    GetChannel(Feed),
+    GetChannel(String),
 }
 
 pub struct Network<'a> {
@@ -19,24 +19,22 @@ impl<'a> Network<'a> {
 
     pub async fn handle_network_event(&mut self, io_event: IoEvent) {
         match io_event {
-            IoEvent::GetChannel(feed) => {
-                self.get_channel(feed).await;
+            IoEvent::GetChannel(url) => {
+                self.get_channel(url).await;
             }
         }
         let mut app = self.app.lock().await;
         app.is_loading = false;
     }
 
-    async fn get_channel(&mut self, feed: Feed) {
-        let result = reqwest::get(feed.url.clone()).await;
+    async fn get_channel(&mut self, url: String) {
+        let result = reqwest::get(url).await;
         match result {
             Ok(result) => match result.bytes().await {
                 Ok(result) => {
-                    let channel = Channel::read_from(&result[..]);
+                    let channel = rss::Channel::read_from(&result[..]);
                     let mut app = self.app.lock().await;
-                    let feed = Feed::new(feed.name.clone(), feed.url.clone());
                     app.set_feed(channel.unwrap());
-                    app.selected_feed = Some(feed);
                 }
                 Err(_e) => {}
             },
