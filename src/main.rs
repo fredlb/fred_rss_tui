@@ -28,7 +28,7 @@ use tui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::Spans,
-    widgets::{Block, Borders, List, ListItem, Paragraph, Wrap},
+    widgets::{Block, Borders, List, ListItem, Paragraph, Wrap, BorderType},
     Frame, Terminal,
 };
 
@@ -166,8 +166,23 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
         })
         .collect();
 
+    let active_border = Style::default().fg(Color::White);
+    let inactive_border = Style::default().fg(Color::White);
+
     let items = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title("fred_rss"))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(match app.selected_view {
+                    SelectedView::FeedView => active_border,
+                    SelectedView::NewsView => inactive_border,
+                })
+                .border_type(match app.selected_view {
+                    SelectedView::FeedView => BorderType::Thick,
+                    SelectedView::NewsView => BorderType::Plain,
+                })
+                .title("fred_rss"),
+        )
         .highlight_style(
             Style::default()
                 .bg(Color::DarkGray)
@@ -184,7 +199,19 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
     };
 
     let news_list = List::new(news_items)
-        .block(Block::default().borders(Borders::ALL).title("News"))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(match app.selected_view {
+                    SelectedView::NewsView => active_border,
+                    SelectedView::FeedView => inactive_border,
+                })
+                .border_type(match app.selected_view {
+                    SelectedView::NewsView => BorderType::Thick,
+                    SelectedView::FeedView => BorderType::Plain,
+                })
+                .title("News"),
+        )
         .highlight_style(
             Style::default()
                 .bg(Color::DarkGray)
