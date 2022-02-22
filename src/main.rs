@@ -6,7 +6,7 @@ extern crate rss;
 extern crate serde;
 extern crate tui;
 
-use app::{App, Config, SelectedView};
+use app::{App, Config, NavigationStack, SelectedView};
 use crossterm::{
     event::{
         self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers,
@@ -27,8 +27,8 @@ use tui::{
     backend::{Backend, CrosstermBackend},
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
-    text::{Span, Spans},
-    widgets::{Block, Borders, List, ListItem},
+    text::Spans,
+    widgets::{Block, Borders, List, ListItem, Paragraph, Wrap},
     Frame, Terminal,
 };
 
@@ -112,13 +112,10 @@ async fn run_app<B: Backend>(
                 Event::Key(KeyEvent {
                     modifiers: KeyModifiers::NONE,
                     code: KeyCode::Char('q'),
-                }) => {
-                    if app.stacking <= 0 {
-                        return Ok(());
-                    } else {
-                        app.back();
-                    }
-                }
+                }) => match app.navigation_stack {
+                    NavigationStack::Main => return Ok(()),
+                    NavigationStack::Item => app.back(),
+                },
                 Event::Key(KeyEvent {
                     modifiers: KeyModifiers::NONE,
                     code: KeyCode::Char('h'),
@@ -181,14 +178,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
     let mut news_items = Vec::<ListItem>::new();
     if let Some(data) = &app.news_data {
         for news in data.items.iter() {
-            let description = news.description.clone().unwrap_or(String::from("..."));
-            let text = vec![
-                Spans::from(String::from(news.title().unwrap())),
-                Spans::from(vec![Span::styled(
-                    description,
-                    Style::default().fg(Color::Yellow),
-                )]),
-            ];
+            let text = vec![Spans::from(String::from(news.title().unwrap()))];
             news_items.push(ListItem::new(text).style(Style::default().fg(Color::White)));
         }
     };
@@ -207,11 +197,31 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
         channel_picker_screen[0],
         &mut app.feeds.state.clone(),
     );
-    if let Some(news_data) = &app.news_data {
-        f.render_stateful_widget(
-            news_list,
-            channel_picker_screen[1],
-            &mut news_data.state.clone(),
-        );
+    match app.navigation_stack {
+        NavigationStack::Main => {
+            if let Some(news_data) = &app.news_data {
+                f.render_stateful_widget(
+                    news_list,
+                    channel_picker_screen[1],
+                    &mut news_data.state.clone(),
+                );
+            }
+        }
+        NavigationStack::Item => {
+            if app.news_index > 0 {
+                if let Some(news_data) = &app.news_data {
+                    let text = vec![Spans::from(
+                        news_data.items[app.news_index]
+                            .description
+                            .clone()
+                            .unwrap_or(String::from("No description")),
+                    )];
+                    let desc = Paragraph::new(text.clone())
+                        .block(Block::default().borders(Borders::ALL))
+                        .wrap(Wrap { trim: false });
+                    f.render_widget(desc, channel_picker_screen[1]);
+                }
+            }
+        }
     }
 }

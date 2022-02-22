@@ -70,6 +70,11 @@ pub enum SelectedView {
     NewsView,
 }
 
+pub enum NavigationStack {
+    Main,
+    Item,
+}
+
 pub struct App {
     pub feeds: StatefulList<ConfigFeed>,
     pub news_data: Option<StatefulList<rss::Item>>,
@@ -77,8 +82,8 @@ pub struct App {
     pub is_loading: bool,
     pub selected_view: SelectedView,
     pub news_index: usize,
-    pub stacking: usize,
     pub config: Config,
+    pub navigation_stack: NavigationStack,
 }
 
 impl App {
@@ -91,7 +96,7 @@ impl App {
             is_loading: false,
             selected_view: SelectedView::FeedView,
             news_index: 0,
-            stacking: 0,
+            navigation_stack: NavigationStack::Main,
         }
     }
 
@@ -128,11 +133,11 @@ impl App {
 
     pub fn back(&mut self) {
         self.news_index = 0;
-        self.stacking -= 1;
+        self.navigation_stack = NavigationStack::Main;
     }
 
     pub fn view_news_under_cursor(&mut self) {
-        self.stacking += 1;
+        self.navigation_stack = NavigationStack::Item;
         match &self.news_data {
             Some(data) => match data.state.selected() {
                 Some(i) => self.news_index = i,
