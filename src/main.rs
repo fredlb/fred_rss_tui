@@ -208,19 +208,17 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &App) {
             }
         }
         NavigationStack::Item => {
-            if app.news_index > 0 {
-                if let Some(news_data) = &app.news_data {
-                    let text = vec![Spans::from(
-                        news_data.items[app.news_index]
-                            .description
-                            .clone()
-                            .unwrap_or(String::from("No description")),
-                    )];
-                    let desc = Paragraph::new(text.clone())
-                        .block(Block::default().borders(Borders::ALL))
-                        .wrap(Wrap { trim: false });
-                    f.render_widget(desc, channel_picker_screen[1]);
-                }
+            if let Some(news_data) = &app.news_data {
+                let text = vec![Spans::from(
+                    news_data.items[app.news_index]
+                        .description
+                        .clone()
+                        .unwrap_or(String::from("No description")),
+                )];
+                let desc = Paragraph::new(text.clone())
+                    .block(Block::default().borders(Borders::ALL))
+                    .wrap(Wrap { trim: false });
+                f.render_widget(desc, channel_picker_screen[1]);
             }
         }
     }

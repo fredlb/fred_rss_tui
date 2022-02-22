@@ -3,6 +3,14 @@
             {
                 "name": "SVT Nyheter",
                 "url": "https://www.svt.se/nyheter/rss.xml"
+            },
+            {
+                "name": "Hacknews frontpage",
+                "url": "https://hnrss.org/frontpage"
+            },
+            {
+                "name": "N+1 Mag",
+                "url": "https://www.nplusonemag.com/feed/"
             }
         ]
     }
