@@ -8,12 +8,12 @@ pub enum IoEvent {
     GetChannel(String),
 }
 
-pub struct Network<'a> {
-    pub app: &'a Arc<Mutex<App>>,
+pub struct Network {
+    pub app: Arc<Mutex<App>>,
 }
 
-impl<'a> Network<'a> {
-    pub fn new(app: &'a Arc<Mutex<App>>) -> Network {
+impl Network {
+    pub fn new(app: Arc<Mutex<App>>) -> Network {
         Network { app }
     }
 

@@ -66,7 +66,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Arc::new(Mutex::new(App::new(config, sync_io_tx)));
     let cloned_app = Arc::clone(&app);
     std::thread::spawn(move || {
-        let mut network = Network::new(&app);
+        let mut network = Network::new(app);
         start_tokio(sync_io_rx, &mut network);
     });
     let _res = run_app(&mut terminal, &cloned_app, tick_rate).await?;
