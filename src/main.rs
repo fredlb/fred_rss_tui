@@ -131,7 +131,7 @@ async fn run_app<B: Backend>(
                     modifiers: KeyModifiers::NONE,
                     code: KeyCode::Char('k'),
                 }) => match app.selected_view {
-                    SelectedView::FeedView => app.feeds.next(),
+                    SelectedView::FeedView => app.feeds.previous(),
                     SelectedView::NewsView => app.news_data.as_mut().unwrap().previous(),
                 },
                 Event::Key(KeyEvent {
